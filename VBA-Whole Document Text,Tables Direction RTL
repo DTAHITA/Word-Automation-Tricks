@@ -1,0 +1,726 @@
+Option Explicit
+
+Public Sub SetDocumentDirectionMenu()
+
+    Dim opt As String
+
+    opt = InputBox( _
+        "Type option number:" & vbCrLf & vbCrLf & _
+        "1 = RTL direction" & vbCrLf & _
+        "2 = LTR direction" & vbCrLf & _
+        "3 = RTL direction + Calibri font + Heading fonts" & vbCrLf & _
+        "4 = Fix pasted bullets/numbering" & vbCrLf & vbCrLf & _
+        "Leave empty to cancel.", _
+        "Document Direction Menu", _
+        "1" _
+    )
+
+    opt = Trim$(opt)
+
+    If opt = "" Then Exit Sub
+
+    On Error GoTo ErrHandler
+    Application.ScreenUpdating = False
+
+    Select Case opt
+
+        Case "1"
+            ApplyDocumentFormat True, False
+            Application.ScreenUpdating = True
+            MsgBox "Done: RTL direction applied.", vbInformation, "Done"
+
+        Case "2"
+            ApplyDocumentFormat False, False
+            Application.ScreenUpdating = True
+            MsgBox "Done: LTR direction applied.", vbInformation, "Done"
+
+        Case "3"
+            ApplyDocumentFormat True, True
+            ApplyHeadingFonts
+            Application.ScreenUpdating = True
+            MsgBox "Done: RTL direction, Calibri font, and Heading fonts applied.", vbInformation, "Done"
+
+        Case "4"
+            FixPastedBulletsAndNumbering True
+            Application.ScreenUpdating = True
+            MsgBox "Done: pasted bullets/numbering fixed.", vbInformation, "Done"
+
+        Case Else
+            Application.ScreenUpdating = True
+            MsgBox "Invalid option. Run the macro again and type 1, 2, 3, or 4.", vbExclamation, "Invalid Option"
+
+    End Select
+
+    Exit Sub
+
+ErrHandler:
+    Application.ScreenUpdating = True
+    MsgBox "Error: " & Err.Description, vbCritical, "Macro Error"
+
+End Sub
+
+
+Private Sub ApplyDocumentFormat(ByVal makeRTL As Boolean, ByVal useCalibri As Boolean)
+
+    Dim sec As Section
+    Dim baseRng As Range
+    Dim rng As Range
+    Dim tbl As Table
+    Dim shp As Shape
+    Dim hdr As HeaderFooter
+    Dim ftr As HeaderFooter
+
+    For Each sec In ActiveDocument.Sections
+        On Error Resume Next
+        If makeRTL Then
+            sec.PageSetup.SectionDirection = wdSectionDirectionRtl
+        Else
+            sec.PageSetup.SectionDirection = wdSectionDirectionLtr
+        End If
+        On Error GoTo 0
+    Next sec
+
+    For Each baseRng In ActiveDocument.StoryRanges
+
+        Set rng = baseRng
+
+        Do While Not rng Is Nothing
+
+            ApplyRangeFormat rng, makeRTL, useCalibri
+
+            For Each tbl In rng.Tables
+                ApplyTableFormat tbl, makeRTL, useCalibri
+            Next tbl
+
+            Set rng = rng.NextStoryRange
+
+        Loop
+
+    Next baseRng
+
+    For Each shp In ActiveDocument.Shapes
+        ApplyShapeFormat shp, makeRTL, useCalibri
+    Next shp
+
+    For Each sec In ActiveDocument.Sections
+
+        For Each hdr In sec.Headers
+            For Each shp In hdr.Shapes
+                ApplyShapeFormat shp, makeRTL, useCalibri
+            Next shp
+        Next hdr
+
+        For Each ftr In sec.Footers
+            For Each shp In ftr.Shapes
+                ApplyShapeFormat shp, makeRTL, useCalibri
+            Next shp
+        Next ftr
+
+    Next sec
+
+End Sub
+
+
+Private Sub ApplyRangeFormat(ByVal rng As Range, ByVal makeRTL As Boolean, ByVal useCalibri As Boolean)
+
+    If makeRTL Then
+        rng.ParagraphFormat.ReadingOrder = wdReadingOrderRtl
+        rng.ParagraphFormat.Alignment = wdAlignParagraphRight
+    Else
+        rng.ParagraphFormat.ReadingOrder = wdReadingOrderLtr
+        rng.ParagraphFormat.Alignment = wdAlignParagraphLeft
+    End If
+
+    If useCalibri Then
+        ApplyCalibriFont rng
+    End If
+
+End Sub
+
+
+Private Sub ApplyTableFormat(ByVal tbl As Table, ByVal makeRTL As Boolean, ByVal useCalibri As Boolean)
+
+    On Error Resume Next
+    tbl.Style = "Grid Table 4 - Accent 1"
+    On Error GoTo 0
+
+    If makeRTL Then
+        tbl.Rows.Alignment = wdAlignRowRight
+        tbl.Range.ParagraphFormat.ReadingOrder = wdReadingOrderRtl
+        tbl.Range.ParagraphFormat.Alignment = wdAlignParagraphRight
+        tbl.TableDirection = wdTableDirectionRtl
+    Else
+        tbl.Rows.Alignment = wdAlignRowLeft
+        tbl.Range.ParagraphFormat.ReadingOrder = wdReadingOrderLtr
+        tbl.Range.ParagraphFormat.Alignment = wdAlignParagraphLeft
+        tbl.TableDirection = wdTableDirectionLtr
+    End If
+
+    If useCalibri Then
+        ApplyCalibriFont tbl.Range
+    End If
+
+End Sub
+
+
+Private Sub ApplyShapeFormat(ByVal shp As Shape, ByVal makeRTL As Boolean, ByVal useCalibri As Boolean)
+
+    On Error Resume Next
+
+    If shp.TextFrame.HasText Then
+
+        If makeRTL Then
+            shp.TextFrame.TextRange.ParagraphFormat.ReadingOrder = wdReadingOrderRtl
+            shp.TextFrame.TextRange.ParagraphFormat.Alignment = wdAlignParagraphRight
+        Else
+            shp.TextFrame.TextRange.ParagraphFormat.ReadingOrder = wdReadingOrderLtr
+            shp.TextFrame.TextRange.ParagraphFormat.Alignment = wdAlignParagraphLeft
+        End If
+
+        If useCalibri Then
+            ApplyCalibriFont shp.TextFrame.TextRange
+        End If
+
+    End If
+
+    On Error GoTo 0
+
+End Sub
+
+
+Private Sub ApplyCalibriFont(ByVal rng As Range)
+
+    On Error Resume Next
+
+    With rng.Font
+        .Name = "Calibri"
+        .NameAscii = "Calibri"
+        .NameBi = "Calibri"
+        .NameFarEast = "Calibri"
+        .NameOther = "Calibri"
+    End With
+
+    On Error GoTo 0
+
+End Sub
+
+
+Private Sub ApplyHeadingFonts()
+
+    Dim p As Paragraph
+
+    For Each p In ActiveDocument.Paragraphs
+
+        If IsHeadingLevel(p, 1) Then
+            ApplySpecificFont p.Range, "AlRaiMedia-Black"
+
+        ElseIf IsHeadingLevel(p, 2) Then
+            ApplySpecificFont p.Range, "Almohanad long kaf"
+
+        End If
+
+    Next p
+
+End Sub
+
+
+Private Function IsHeadingLevel(ByVal p As Paragraph, ByVal level As Long) As Boolean
+
+    On Error Resume Next
+
+    Select Case level
+        Case 1
+            IsHeadingLevel = (p.Range.ParagraphFormat.OutlineLevel = wdOutlineLevel1)
+
+        Case 2
+            IsHeadingLevel = (p.Range.ParagraphFormat.OutlineLevel = wdOutlineLevel2)
+
+        Case Else
+            IsHeadingLevel = False
+    End Select
+
+    On Error GoTo 0
+
+End Function
+
+
+Private Function IsAnyHeading(ByVal p As Paragraph) As Boolean
+
+    Dim ol As Long
+
+    On Error Resume Next
+    ol = p.Range.ParagraphFormat.OutlineLevel
+    On Error GoTo 0
+
+    Select Case ol
+        Case wdOutlineLevel1, wdOutlineLevel2, wdOutlineLevel3, _
+             wdOutlineLevel4, wdOutlineLevel5, wdOutlineLevel6, _
+             wdOutlineLevel7, wdOutlineLevel8, wdOutlineLevel9
+
+            IsAnyHeading = True
+
+        Case Else
+            IsAnyHeading = False
+    End Select
+
+End Function
+
+
+Private Sub ApplySpecificFont(ByVal rng As Range, ByVal fontName As String)
+
+    On Error Resume Next
+
+    With rng.Font
+        .Name = fontName
+        .NameAscii = fontName
+        .NameBi = fontName
+        .NameFarEast = fontName
+        .NameOther = fontName
+    End With
+
+    On Error GoTo 0
+
+End Sub
+
+
+Private Sub FixPastedBulletsAndNumbering(ByVal makeRTL As Boolean)
+
+    Dim baseRng As Range
+    Dim rng As Range
+
+    For Each baseRng In ActiveDocument.StoryRanges
+
+        Set rng = baseRng
+
+        Do While Not rng Is Nothing
+
+            FixPastedListsInRange rng, makeRTL
+
+            Set rng = rng.NextStoryRange
+
+        Loop
+
+    Next baseRng
+
+End Sub
+
+
+Private Sub FixPastedListsInRange(ByVal targetRange As Range, ByVal makeRTL As Boolean)
+
+    Dim p As Paragraph
+    Dim txtRng As Range
+    Dim txt As String
+    Dim markerLen As Long
+    Dim listKind As String
+    Dim listNumber As Long
+    Dim alreadyListed As Boolean
+    Dim restartNumbering As Boolean
+    Dim previousKind As String
+
+    previousKind = ""
+
+    For Each p In targetRange.Paragraphs
+
+        If Not IsAnyHeading(p) Then
+
+            Set txtRng = p.Range.Duplicate
+
+            If txtRng.End > txtRng.Start Then
+                txtRng.End = txtRng.End - 1
+            End If
+
+            txt = txtRng.Text
+
+            markerLen = 0
+            listKind = ""
+            listNumber = 0
+
+            If DetectTextListMarker(txt, markerLen, listKind, listNumber) Then
+
+                alreadyListed = (p.Range.ListFormat.ListType <> wdListNoNumbering)
+
+                If markerLen > 0 Then
+                    DeleteLeadingCharacters p, markerLen
+                End If
+
+                If makeRTL Then
+                    p.Range.ParagraphFormat.ReadingOrder = wdReadingOrderRtl
+                    p.Range.ParagraphFormat.Alignment = wdAlignParagraphRight
+                Else
+                    p.Range.ParagraphFormat.ReadingOrder = wdReadingOrderLtr
+                    p.Range.ParagraphFormat.Alignment = wdAlignParagraphLeft
+                End If
+
+                If Not alreadyListed Then
+
+                    If listKind = "bullet" Then
+                        ApplyBulletListToParagraph p, makeRTL
+
+                    ElseIf listKind = "number" Then
+
+                        restartNumbering = False
+
+                        If previousKind <> "number" Then
+                            restartNumbering = True
+                        End If
+
+                        If listNumber = 1 Then
+                            restartNumbering = True
+                        End If
+
+                        ApplyNumberListToParagraph p, makeRTL, restartNumbering, listNumber
+
+                    End If
+
+                End If
+
+                previousKind = listKind
+
+            Else
+
+                If Len(Trim$(txt)) > 0 Then
+                    previousKind = ""
+                End If
+
+            End If
+
+        End If
+
+    Next p
+
+End Sub
+
+
+Private Function DetectTextListMarker( _
+    ByVal txt As String, _
+    ByRef markerLen As Long, _
+    ByRef listKind As String, _
+    ByRef listNumber As Long _
+) As Boolean
+
+    Dim i As Long
+    Dim j As Long
+    Dim n As Long
+    Dim ch As String
+    Dim nextCh As String
+    Dim digitCount As Long
+    Dim numberValue As Long
+    Dim hasOpenBracket As Boolean
+    Dim delimiter As String
+
+    txt = RemoveTrailingWordMarks(txt)
+    n = Len(txt)
+
+    If n = 0 Then
+        DetectTextListMarker = False
+        Exit Function
+    End If
+
+    i = 1
+
+    Do While i <= n And IsSkippableLeadingChar(Mid$(txt, i, 1))
+        i = i + 1
+    Loop
+
+    If i > n Then
+        DetectTextListMarker = False
+        Exit Function
+    End If
+
+    ch = Mid$(txt, i, 1)
+
+    If IsBulletMarker(ch) Then
+
+        j = i + 1
+
+        Do While j <= n And IsSkippableLeadingChar(Mid$(txt, j, 1))
+            j = j + 1
+        Loop
+
+        If j <= n Then
+            markerLen = j - 1
+            listKind = "bullet"
+            listNumber = 0
+            DetectTextListMarker = True
+            Exit Function
+        End If
+
+    End If
+
+    hasOpenBracket = False
+
+    If ch = "(" Or ch = "[" Then
+        hasOpenBracket = True
+        i = i + 1
+    End If
+
+    If i > n Then
+        DetectTextListMarker = False
+        Exit Function
+    End If
+
+    digitCount = 0
+    numberValue = 0
+
+    Do While i <= n And IsDigitAny(Mid$(txt, i, 1))
+        digitCount = digitCount + 1
+        numberValue = (numberValue * 10) + DigitValueAny(Mid$(txt, i, 1))
+        i = i + 1
+    Loop
+
+    If digitCount = 0 Then
+        DetectTextListMarker = False
+        Exit Function
+    End If
+
+    If digitCount > 3 Then
+        DetectTextListMarker = False
+        Exit Function
+    End If
+
+    If i > n Then
+        DetectTextListMarker = False
+        Exit Function
+    End If
+
+    ch = Mid$(txt, i, 1)
+
+    If hasOpenBracket Then
+
+        If ch <> ")" And ch <> "]" Then
+            DetectTextListMarker = False
+            Exit Function
+        End If
+
+        i = i + 1
+
+    Else
+
+        delimiter = ch
+
+        If delimiter <> "." And delimiter <> ")" And delimiter <> "-" And delimiter <> ":" Then
+            DetectTextListMarker = False
+            Exit Function
+        End If
+
+        If delimiter = "." Then
+            If i < n Then
+                nextCh = Mid$(txt, i + 1, 1)
+                If IsDigitAny(nextCh) Then
+                    DetectTextListMarker = False
+                    Exit Function
+                End If
+            End If
+        End If
+
+        i = i + 1
+
+    End If
+
+    If i <= n Then
+        If Not IsSkippableLeadingChar(Mid$(txt, i, 1)) Then
+            DetectTextListMarker = False
+            Exit Function
+        End If
+    End If
+
+    Do While i <= n And IsSkippableLeadingChar(Mid$(txt, i, 1))
+        i = i + 1
+    Loop
+
+    If i <= n Then
+        markerLen = i - 1
+        listKind = "number"
+        listNumber = numberValue
+        DetectTextListMarker = True
+    Else
+        DetectTextListMarker = False
+    End If
+
+End Function
+
+
+Private Function RemoveTrailingWordMarks(ByVal txt As String) As String
+
+    Do While Len(txt) > 0
+
+        Select Case Right$(txt, 1)
+            Case vbCr, Chr$(7), Chr$(11), Chr$(12)
+                txt = Left$(txt, Len(txt) - 1)
+            Case Else
+                Exit Do
+        End Select
+
+    Loop
+
+    RemoveTrailingWordMarks = txt
+
+End Function
+
+
+Private Function IsSkippableLeadingChar(ByVal ch As String) As Boolean
+
+    Dim code As Long
+
+    If Len(ch) = 0 Then
+        IsSkippableLeadingChar = False
+        Exit Function
+    End If
+
+    code = AscW(ch)
+    If code < 0 Then code = code + 65536
+
+    Select Case code
+        Case 9, 32, 160, &H200E, &H200F
+            IsSkippableLeadingChar = True
+        Case Else
+            IsSkippableLeadingChar = False
+    End Select
+
+End Function
+
+
+Private Function IsBulletMarker(ByVal ch As String) As Boolean
+
+    Dim code As Long
+
+    If Len(ch) = 0 Then
+        IsBulletMarker = False
+        Exit Function
+    End If
+
+    code = AscW(ch)
+    If code < 0 Then code = code + 65536
+
+    Select Case code
+        Case &H2022, &HB7, &H25CF, &H25CB, &H25E6, _
+             &H25AA, &H25A0, &H2013, &H2014, _
+             &H2D, &H2A, &HF0B7, &HF0A7
+
+            IsBulletMarker = True
+
+        Case Else
+            IsBulletMarker = False
+    End Select
+
+End Function
+
+
+Private Function IsDigitAny(ByVal ch As String) As Boolean
+
+    Dim code As Long
+
+    If Len(ch) = 0 Then
+        IsDigitAny = False
+        Exit Function
+    End If
+
+    code = AscW(ch)
+    If code < 0 Then code = code + 65536
+
+    If code >= AscW("0") And code <= AscW("9") Then
+        IsDigitAny = True
+    ElseIf code >= &H660 And code <= &H669 Then
+        IsDigitAny = True
+    ElseIf code >= &H6F0 And code <= &H6F9 Then
+        IsDigitAny = True
+    Else
+        IsDigitAny = False
+    End If
+
+End Function
+
+
+Private Function DigitValueAny(ByVal ch As String) As Long
+
+    Dim code As Long
+
+    code = AscW(ch)
+    If code < 0 Then code = code + 65536
+
+    If code >= AscW("0") And code <= AscW("9") Then
+        DigitValueAny = code - AscW("0")
+    ElseIf code >= &H660 And code <= &H669 Then
+        DigitValueAny = code - &H660
+    ElseIf code >= &H6F0 And code <= &H6F9 Then
+        DigitValueAny = code - &H6F0
+    Else
+        DigitValueAny = 0
+    End If
+
+End Function
+
+
+Private Sub DeleteLeadingCharacters(ByVal p As Paragraph, ByVal charCount As Long)
+
+    Dim delRng As Range
+    Dim endPos As Long
+
+    If charCount <= 0 Then Exit Sub
+
+    Set delRng = p.Range.Duplicate
+
+    endPos = delRng.Start + charCount
+
+    If endPos > delRng.End Then
+        endPos = delRng.End
+    End If
+
+    delRng.End = endPos
+    delRng.Delete
+
+End Sub
+
+
+Private Sub ApplyBulletListToParagraph(ByVal p As Paragraph, ByVal makeRTL As Boolean)
+
+    On Error Resume Next
+
+    p.Range.ListFormat.ApplyListTemplateWithLevel _
+        ListTemplate:=ListGalleries(wdBulletGallery).ListTemplates(1), _
+        ContinuePreviousList:=False, _
+        ApplyTo:=wdListApplyToWholeList, _
+        DefaultListBehavior:=wdWord10ListBehavior
+
+    If makeRTL Then
+        p.Range.ParagraphFormat.ReadingOrder = wdReadingOrderRtl
+        p.Range.ParagraphFormat.Alignment = wdAlignParagraphRight
+    End If
+
+    On Error GoTo 0
+
+End Sub
+
+
+Private Sub ApplyNumberListToParagraph( _
+    ByVal p As Paragraph, _
+    ByVal makeRTL As Boolean, _
+    ByVal restartNumbering As Boolean, _
+    ByVal startAtNumber As Long _
+)
+
+    Dim lt As ListTemplate
+
+    On Error Resume Next
+
+    Set lt = ListGalleries(wdNumberGallery).ListTemplates(1)
+
+    If restartNumbering Then
+        If startAtNumber < 1 Then startAtNumber = 1
+        lt.ListLevels(1).StartAt = startAtNumber
+    End If
+
+    p.Range.ListFormat.ApplyListTemplateWithLevel _
+        ListTemplate:=lt, _
+        ContinuePreviousList:=Not restartNumbering, _
+        ApplyTo:=wdListApplyToWholeList, _
+        DefaultListBehavior:=wdWord10ListBehavior
+
+    If makeRTL Then
+        p.Range.ParagraphFormat.ReadingOrder = wdReadingOrderRtl
+        p.Range.ParagraphFormat.Alignment = wdAlignParagraphRight
+    End If
+
+    On Error GoTo 0
+
+End Sub
